@@ -29,14 +29,17 @@ h1 {
   max-width: 800px;
 }
 
-.direction-toggle {
-  display: flex;
-  justify-content: center;
+.conversion-types {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   margin-bottom: 2rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.toggle-button {
+.type-button {
   padding: 0.8rem 1.5rem;
   border: 2px solid #3498db;
   background: transparent;
@@ -45,13 +48,14 @@ h1 {
   font-size: 1.1rem;
   cursor: pointer;
   transition: all 0.3s ease;
+  width: 100%;
 }
 
-.toggle-button:hover {
+.type-button:hover {
   background: #3498db15;
 }
 
-.toggle-button.active {
+.type-button.active {
   background: #3498db;
   color: white;
 }
@@ -178,11 +182,8 @@ input:focus, select:focus {
     font-size: 1.2rem;
   }
 
-  .direction-toggle {
-    flex-direction: column;
-  }
-
-  .toggle-button {
-    width: 100%;
+  .conversion-types {
+    grid-template-columns: 1fr;
+    max-width: 300px;
   }
 }

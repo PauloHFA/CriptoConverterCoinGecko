@@ -4,13 +4,13 @@ import { cryptocurrencies, fiatCurrencies } from './currencies'
 import { convertCurrency } from './services/coinGeckoService'
 
 function App() {
-  const [fromCurrency, setFromCurrency] = useState('bitcoin')
-  const [toCurrency, setToCurrency] = useState('usd')
+  const [conversionType, setConversionType] = useState('fiat-to-fiat') // 'fiat-to-fiat', 'crypto-to-crypto', 'crypto-to-fiat', 'fiat-to-crypto'
+  const [fromCurrency, setFromCurrency] = useState('usd')
+  const [toCurrency, setToCurrency] = useState('brl')
   const [amount, setAmount] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [isCryptoToFiat, setIsCryptoToFiat] = useState(true)
 
   const handleConvert = async (e) => {
     e.preventDefault()
@@ -18,12 +18,37 @@ function App() {
     setError(null)
     
     try {
-      if (isCryptoToFiat) {
+      if (conversionType === 'fiat-to-fiat') {
+        // Para conversão entre moedas fiat, precisamos usar uma criptomoeda como intermediária
+        const conversion = await convertCurrency('bitcoin', toCurrency, 1)
+        const conversionFrom = await convertCurrency('bitcoin', fromCurrency, 1)
+        const rate = conversion.rate / conversionFrom.rate
+        const result = amount * rate
+        setResult({
+          amount,
+          fromCurrency,
+          toCurrency,
+          rate,
+          result: parseFloat(result.toFixed(2))
+        })
+      } else if (conversionType === 'crypto-to-crypto') {
+        // Para conversão entre criptomoedas, usamos USD como intermediário
+        const conversion = await convertCurrency(fromCurrency, 'usd', 1)
+        const conversionTo = await convertCurrency(toCurrency, 'usd', 1)
+        const rate = conversion.rate / conversionTo.rate
+        const result = amount * rate
+        setResult({
+          amount,
+          fromCurrency,
+          toCurrency,
+          rate,
+          result: parseFloat(result.toFixed(8))
+        })
+      } else if (conversionType === 'crypto-to-fiat') {
         const conversion = await convertCurrency(fromCurrency, toCurrency, parseFloat(amount))
         setResult(conversion)
-      } else {
-        // For fiat to crypto, we need to calculate the inverse
-        const conversion = await convertCurrency(fromCurrency, toCurrency, parseFloat(amount))
+      } else if (conversionType === 'fiat-to-crypto') {
+        const conversion = await convertCurrency(toCurrency, fromCurrency, parseFloat(amount))
         const inverseResult = {
           ...conversion,
           result: parseFloat(amount) / conversion.rate,
@@ -39,15 +64,10 @@ function App() {
     }
   }
 
-  const handleSwapDirection = () => {
-    setIsCryptoToFiat(!isCryptoToFiat)
-    setResult(null)
-  }
-
   const formatCurrency = (value, currency) => {
-    if (currency.toLowerCase() === toCurrency && !isCryptoToFiat) {
-      // For crypto results, show more decimal places
-      return value.toFixed(8) + ` ${selectedCrypto?.symbol || fromCurrency.toUpperCase()}`
+    if (conversionType === 'crypto-to-crypto' || 
+        (conversionType === 'fiat-to-crypto' && currency === toCurrency)) {
+      return value.toFixed(8) + ` ${selectedToCrypto?.symbol || toCurrency.toUpperCase()}`
     }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -57,23 +77,36 @@ function App() {
     }).format(value)
   }
 
-  // Find the selected cryptocurrency details
-  const selectedCrypto = cryptocurrencies.find(crypto => crypto.id === fromCurrency)
+  // Encontrar os detalhes das criptomoedas selecionadas
+  const selectedFromCrypto = cryptocurrencies.find(crypto => crypto.id === fromCurrency)
+  const selectedToCrypto = cryptocurrencies.find(crypto => crypto.id === toCurrency)
 
   return (
     <div className="container">
       <h1>Crypto Converter</h1>
       <div className="converter-card">
-        <div className="direction-toggle">
+        <div className="conversion-types">
           <button 
-            className={`toggle-button ${isCryptoToFiat ? 'active' : ''}`}
-            onClick={() => setIsCryptoToFiat(true)}
+            className={`type-button ${conversionType === 'fiat-to-fiat' ? 'active' : ''}`}
+            onClick={() => setConversionType('fiat-to-fiat')}
+          >
+            Fiat → Fiat
+          </button>
+          <button 
+            className={`type-button ${conversionType === 'crypto-to-crypto' ? 'active' : ''}`}
+            onClick={() => setConversionType('crypto-to-crypto')}
+          >
+            Crypto → Crypto
+          </button>
+          <button 
+            className={`type-button ${conversionType === 'crypto-to-fiat' ? 'active' : ''}`}
+            onClick={() => setConversionType('crypto-to-fiat')}
           >
             Crypto → Fiat
           </button>
           <button 
-            className={`toggle-button ${!isCryptoToFiat ? 'active' : ''}`}
-            onClick={() => setIsCryptoToFiat(false)}
+            className={`type-button ${conversionType === 'fiat-to-crypto' ? 'active' : ''}`}
+            onClick={() => setConversionType('fiat-to-crypto')}
           >
             Fiat → Crypto
           </button>
@@ -85,28 +118,25 @@ function App() {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder={`Enter amount in ${isCryptoToFiat ? 'crypto' : 'fiat'}`}
+              placeholder={`Enter amount in ${conversionType.includes('fiat') ? 'fiat' : 'crypto'}`}
               required
               step="any"
               min="0"
             />
             <select
-              value={isCryptoToFiat ? fromCurrency : toCurrency}
-              onChange={(e) => isCryptoToFiat 
-                ? setFromCurrency(e.target.value)
-                : setToCurrency(e.target.value.toLowerCase())
-              }
+              value={fromCurrency}
+              onChange={(e) => setFromCurrency(e.target.value)}
             >
-              {isCryptoToFiat ? (
-                cryptocurrencies.map((crypto) => (
-                  <option key={crypto.id} value={crypto.id}>
-                    {crypto.name} ({crypto.symbol})
-                  </option>
-                ))
-              ) : (
+              {conversionType.includes('fiat') ? (
                 fiatCurrencies.map((currency) => (
                   <option key={currency.code} value={currency.code.toLowerCase()}>
                     {currency.name} ({currency.code})
+                  </option>
+                ))
+              ) : (
+                cryptocurrencies.map((crypto) => (
+                  <option key={crypto.id} value={crypto.id}>
+                    {crypto.name} ({crypto.symbol})
                   </option>
                 ))
               )}
@@ -119,13 +149,10 @@ function App() {
 
           <div className="input-group">
             <select
-              value={isCryptoToFiat ? toCurrency : fromCurrency}
-              onChange={(e) => isCryptoToFiat
-                ? setToCurrency(e.target.value.toLowerCase())
-                : setFromCurrency(e.target.value)
-              }
+              value={toCurrency}
+              onChange={(e) => setToCurrency(e.target.value)}
             >
-              {isCryptoToFiat ? (
+              {conversionType.includes('fiat') ? (
                 fiatCurrencies.map((currency) => (
                   <option key={currency.code} value={currency.code.toLowerCase()}>
                     {currency.name} ({currency.code})
@@ -161,20 +188,17 @@ function App() {
             <h2>Conversion Result:</h2>
             <div className="result-details">
               <p>
-                {amount} {isCryptoToFiat 
-                  ? `${selectedCrypto?.symbol || fromCurrency.toUpperCase()}`
-                  : toCurrency.toUpperCase()
+                {amount} {conversionType.includes('fiat') 
+                  ? fromCurrency.toUpperCase()
+                  : selectedFromCrypto?.symbol || fromCurrency.toUpperCase()
                 } = {' '}
-                {isCryptoToFiat
-                  ? formatCurrency(result.result, toCurrency)
-                  : `${result.result.toFixed(8)} ${selectedCrypto?.symbol || fromCurrency.toUpperCase()}`
-                }
+                {formatCurrency(result.result, toCurrency)}
               </p>
               <p className="rate">
-                1 {isCryptoToFiat 
-                  ? `${selectedCrypto?.symbol || fromCurrency.toUpperCase()} = ${formatCurrency(result.rate, toCurrency)}`
-                  : `${toCurrency.toUpperCase()} = ${result.rate.toFixed(8)} ${selectedCrypto?.symbol || fromCurrency.toUpperCase()}`
-                }
+                1 {conversionType.includes('fiat') 
+                  ? fromCurrency.toUpperCase()
+                  : selectedFromCrypto?.symbol || fromCurrency.toUpperCase()
+                } = {formatCurrency(result.rate, toCurrency)}
               </p>
             </div>
           </div>
