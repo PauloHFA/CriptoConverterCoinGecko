@@ -45,16 +45,28 @@ function App() {
           result: parseFloat(result.toFixed(8))
         })
       } else if (conversionType === 'crypto-to-fiat') {
-        const conversion = await convertCurrency(fromCurrency, toCurrency, parseFloat(amount))
-        setResult(conversion)
+        // Para conversão de crypto para fiat, usamos a API diretamente
+        const conversion = await convertCurrency(fromCurrency, toCurrency, 1)
+        const result = amount * conversion.rate
+        setResult({
+          amount,
+          fromCurrency,
+          toCurrency,
+          rate: conversion.rate,
+          result: parseFloat(result.toFixed(2))
+        })
       } else if (conversionType === 'fiat-to-crypto') {
-        const conversion = await convertCurrency(toCurrency, fromCurrency, parseFloat(amount))
-        const inverseResult = {
-          ...conversion,
-          result: parseFloat(amount) / conversion.rate,
-          rate: 1 / conversion.rate
-        }
-        setResult(inverseResult)
+        // Para conversão de fiat para crypto, precisamos inverter a taxa
+        const conversion = await convertCurrency(toCurrency, fromCurrency, 1)
+        const rate = 1 / conversion.rate
+        const result = amount * rate
+        setResult({
+          amount,
+          fromCurrency,
+          toCurrency,
+          rate,
+          result: parseFloat(result.toFixed(8))
+        })
       }
     } catch (err) {
       setError('Error converting currencies. Please try again.')
@@ -88,25 +100,41 @@ function App() {
         <div className="conversion-types">
           <button 
             className={`type-button ${conversionType === 'fiat-to-fiat' ? 'active' : ''}`}
-            onClick={() => setConversionType('fiat-to-fiat')}
+            onClick={() => {
+              setConversionType('fiat-to-fiat')
+              setFromCurrency('usd')
+              setToCurrency('brl')
+            }}
           >
             Fiat → Fiat
           </button>
           <button 
             className={`type-button ${conversionType === 'crypto-to-crypto' ? 'active' : ''}`}
-            onClick={() => setConversionType('crypto-to-crypto')}
+            onClick={() => {
+              setConversionType('crypto-to-crypto')
+              setFromCurrency('bitcoin')
+              setToCurrency('ethereum')
+            }}
           >
             Crypto → Crypto
           </button>
           <button 
             className={`type-button ${conversionType === 'crypto-to-fiat' ? 'active' : ''}`}
-            onClick={() => setConversionType('crypto-to-fiat')}
+            onClick={() => {
+              setConversionType('crypto-to-fiat')
+              setFromCurrency('bitcoin')
+              setToCurrency('usd')
+            }}
           >
             Crypto → Fiat
           </button>
           <button 
             className={`type-button ${conversionType === 'fiat-to-crypto' ? 'active' : ''}`}
-            onClick={() => setConversionType('fiat-to-crypto')}
+            onClick={() => {
+              setConversionType('fiat-to-crypto')
+              setFromCurrency('usd')
+              setToCurrency('bitcoin')
+            }}
           >
             Fiat → Crypto
           </button>
@@ -127,7 +155,7 @@ function App() {
               value={fromCurrency}
               onChange={(e) => setFromCurrency(e.target.value)}
             >
-              {conversionType.includes('fiat') ? (
+              {(conversionType === 'fiat-to-fiat' || conversionType === 'fiat-to-crypto') ? (
                 fiatCurrencies.map((currency) => (
                   <option key={currency.code} value={currency.code.toLowerCase()}>
                     {currency.name} ({currency.code})
@@ -152,7 +180,7 @@ function App() {
               value={toCurrency}
               onChange={(e) => setToCurrency(e.target.value)}
             >
-              {conversionType.includes('fiat') ? (
+              {(conversionType === 'fiat-to-fiat' || conversionType === 'crypto-to-fiat') ? (
                 fiatCurrencies.map((currency) => (
                   <option key={currency.code} value={currency.code.toLowerCase()}>
                     {currency.name} ({currency.code})
